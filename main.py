@@ -89,7 +89,7 @@ exogenous = {
 }
 
 override_bonus = {
-    'Field Joint O-Ring Resilience': 1.8,
+    'Field Joint O-Ring Resilience': 2.2,
     'Primary O-Ring Seal': 0.8,
 }
 
@@ -112,7 +112,7 @@ def update_system(temp_c=0, override=False):
     # temperature weakens seal baseline safety
     if temp_c < 5:
         cold = 5 - temp_c
-        nodes['Field Joint O-Ring Resilience'].baseline = -5.8 + 0.35 * cold
+        nodes['Field Joint O-Ring Resilience'].baseline = -5.8 + 0.45 * cold
         nodes['Primary O-Ring Seal'].baseline = -6.2 + 0.15 * cold
         nodes['Secondary O-Ring Seal'].baseline = -6.2 + 0.15 * cold
     else:
