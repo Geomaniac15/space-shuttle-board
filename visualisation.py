@@ -66,11 +66,11 @@ def reset_nodes():
 
 def run_visual_sim():
     pygame.init()
-    WIDTH, HEIGHT = 1200, 300
+    WIDTH, HEIGHT = 500, 800
     screen = pygame.display.set_mode((WIDTH, HEIGHT))
     pygame.display.set_caption('Shuttle Systems Cascade')
 
-    font = pygame.font.SysFont('consolas', 14)
+    font = pygame.font.SysFont('consolas', 16)
 
     clock = pygame.time.Clock()
 
@@ -110,19 +110,22 @@ def run_visual_sim():
                 launching = False
         
         # draw led strip
-        spacing = WIDTH // (len(NODE_ORDER) + 1)
+        top_margin = 100
+        spacing = (HEIGHT - 200) // len(NODE_ORDER)
 
         for i, name in enumerate(NODE_ORDER):
             node = nodes[name]
-            x = spacing * (i + 1)
-            y = HEIGHT // 2
-            colour = led_colour(node)
-            pygame.draw.circle(screen, colour, (x, y), 18)
+            x = 150
+            y = top_margin + i * spacing
 
-            label = NODE_LABELS[name]
-            label_surface = font.render(label, True, (180, 180, 180))
-            label_rect = label_surface.get_rect(center=(x, y + 35))
-            screen.blit(label_surface, label_rect)
+            radius = 14
+
+            pygame.draw.circle(screen, led_colour(node), (x, y), radius)
+
+            #label = NODE_LABELS[name]
+            label = node.name
+            label_surface = font.render(label, True, (200, 200, 200))
+            screen.blit(label_surface, (x + 30, y - 8))
         
         # status text
         status_text = f'TEMP: {temp_c}C | OVERRIDE: {override}'
