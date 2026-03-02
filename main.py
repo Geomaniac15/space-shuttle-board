@@ -78,7 +78,7 @@ edge_w ={
     ('Secondary O-Ring Seal', 'Blow-By Erosion'): 1.3,
     ('SRB Case Integrity', 'Blow-By Erosion'): 1.0,
     ('Intertank Structure', 'Structural Load Distribution'): 1.0,
-    ('Structural Load Distribution', 'Vehicle Survival'): 2.5,
+    ('Structural Load Distribution', 'Vehicle Survival'): 2.0,
 }
 
 exogenous = {
@@ -90,7 +90,7 @@ exogenous = {
 
 override_bonus = {
     'Field Joint O-Ring Resilience': 1.8,
-    'Primary O-Ring Seal': 1.0,
+    'Primary O-Ring Seal': 0.8,
 }
 
 # dependencies
@@ -109,12 +109,23 @@ def update_system(temp_c=0, override=False):
     nodes['Ice Formation Risk'].health = 1.0 - cold_factor
     nodes['Ice Formation Risk'].failed = False
 
-    # direct temperature weakening of SRB seals
+    # temperature weakens seal baseline safety
     if temp_c < 5:
         cold = 5 - temp_c
-        nodes['Field Joint O-Ring Resilience'].health *= max(0.0, 1 - 0.05 * cold)
-        nodes['Primary O-Ring Seal'].health *= max(0.0, 1 - 0.04 * cold)
-        nodes['Secondary O-Ring Seal'].health *= max(0.0, 1 - 0.04 * cold)
+        nodes['Field Joint O-Ring Resilience'].baseline = -5.8 + 0.35 * cold
+        nodes['Primary O-Ring Seal'].baseline = -6.2 + 0.15 * cold
+        nodes['Secondary O-Ring Seal'].baseline = -6.2 + 0.15 * cold
+    else:
+        nodes['Field Joint O-Ring Resilience'].baseline = -7.2
+        nodes['Primary O-Ring Seal'].baseline = -7.4
+        nodes['Secondary O-Ring Seal'].baseline = -7.4
+
+    # direct temperature weakening of SRB seals
+    # if temp_c < 5:
+    #     cold = 5 - temp_c
+    #     nodes['Field Joint O-Ring Resilience'].health *= max(0.0, 1 - 0.05 * cold)
+    #     nodes['Primary O-Ring Seal'].health *= max(0.0, 1 - 0.04 * cold)
+    #     nodes['Secondary O-Ring Seal'].health *= max(0.0, 1 - 0.04 * cold)
 
     for node in nodes.values():
         if node.name in exogenous:
@@ -129,17 +140,29 @@ def update_system(temp_c=0, override=False):
             w = edge_w.get((dep, node.name), 1.0)
             stress += w * (1 - nodes[dep].health)
         
+        # propagate failures from dependencies
+        if any(nodes[dep].failed for dep in node.dependencies):
+            # if any parent has failed, degrade or fail probabilistically
+            # lower propagation chance to keep survival high at warm temps
+            if random.random() < 0.08:
+                node.failed = True
+                node.health = 0.0
+                continue
+            else:
+                # small health hit but not immediate failure
+                node.health *= 0.9
+
         # controlled stress-induced weakening (only for key nodes)
-        if node.name in [
-            'Field Joint O-Ring Resilience',
-            'Primary O-Ring Seal',
-            'Secondary O-Ring Seal',
-            'Blow-By Erosion'
-        ]:
-            weakening = 0.002 * stress
-            if temp_c < 5:
-                weakening += 0.003 * (5 - temp_c)
-            node.health = max(0.0, node.health - weakening)
+        # if node.name in [
+        #     'Field Joint O-Ring Resilience',
+        #     'Primary O-Ring Seal',
+        #     'Secondary O-Ring Seal',
+        #     'Blow-By Erosion'
+        # ]:
+        #     weakening = 0.001 * stress
+        #     if temp_c < 5:
+        #         weakening += 0.003 * (5 - temp_c)
+        #     node.health = max(0.0, node.health - weakening)
 
         # cold = max(0, 5 - temp_c)
         # cold_stress = 0.0
@@ -153,6 +176,14 @@ def update_system(temp_c=0, override=False):
         #     ]:
         #         cold_stress = 0.3 * cold
 
+        # direct temperature weakening of SRB seals (stronger effect)
+        # cold = max(0, 10 - temp_c)   # make 10C the softness threshold
+
+        # if cold > 0:
+        #     nodes['Field Joint O-Ring Resilience'].health *= max(0.0, 1 - 0.08 * cold)
+        #     nodes['Primary O-Ring Seal'].health *= max(0.0, 1 - 0.06 * cold)
+        #     nodes['Secondary O-Ring Seal'].health *= max(0.0, 1 - 0.06 * cold)
+
         # temp effect only on o-rings
         # temp_term = 0
         # if node.name == 'Field Joint O-Ring Resilience':
@@ -162,6 +193,7 @@ def update_system(temp_c=0, override=False):
         #     cold = max(0, 5 - temp_c)
         #     temp_term = cold * 0.8
         
+        #override_term = override_bonus.get(node.name, 0.0) if override else 0.0
         override_term = override_bonus.get(node.name, 0.0) if override else 0.0
         logit = (
             node.baseline
@@ -177,10 +209,9 @@ def update_system(temp_c=0, override=False):
         if random.random() < p_fail:
             node.failed = True
             node.health = 0.0
-        # else:
-        #     node.health = max(0, node.health - 0.01 * stress)
-
-def simulate(temp_c=0, override=False, steps=200):
+        # convert extreme health drops into failures as well
+        
+def simulate(temp_c=0, override=False, steps=60):
     # reset
     for node in nodes.values():
         node.health = 1.0
@@ -202,7 +233,7 @@ for i in range(3):
     temp = temps[i]
     override = overrides[i]
 
-    results = [simulate(temp_c=temp, override=override, steps=80) for _ in range(1000)]
+    results = [simulate(temp_c=temp, override=override, steps=60) for _ in range(1000)]
     print(f'Temperature: {temp}C, override: {override}')
     print(f'Survival rate: {sum(results) / len(results)}')
     print()
