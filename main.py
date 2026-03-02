@@ -7,7 +7,7 @@ class Node:
         self.health = 1.0
         self.failed = False
         self.dependencies = []
-        self.baseline = -8.0
+        self.baseline = -9.5
         self.health_sensitivity = 5.0
         self.override_sensitivity = 0.0
         self.temp_sensitivity = 0.0
@@ -81,33 +81,76 @@ edge_w ={
     ('Structural Load Distribution', 'Vehicle Survival'): 2.5,
 }
 
+exogenous = {
+    'Ambient Temperature',
+    'Sensor Accuracy',
+    'Launch Pressure',
+    'Ice Formation Risk'
+}
+
+override_bonus = {
+    'Field Joint O-Ring Resilience': 1.8,
+    'Primary O-Ring Seal': 1.0,
+}
+
 # dependencies
 for node_name, deps in edges.items():
     nodes[node_name].dependencies = deps
 
+nodes['Field Joint O-Ring Resilience'].baseline = -6.5
+nodes['Blow-By Erosion'].baseline = -7.0
+nodes['External Tank Integrity'].baseline = -7.0
+nodes['Structural Load Distribution'].baseline = -6.5
+
 # update system
 def update_system(temp_c=0, override=False):
+    # ice risk from temperature
+    cold_factor = sigmoid((1 - temp_c) * 0.5)
+    nodes['Ice Formation Risk'].health = 1.0 - cold_factor
+    nodes['Ice Formation Risk'].failed = False
+
     for node in nodes.values():
+        if node.name in exogenous:
+            continue
+
         if node.failed:
             continue
 
         # compute stresses
         stress = 0.0
         for dep in node.dependencies:
-            w = edge_w.get((dep, node_name), 1.0)
+            w = edge_w.get((dep, node.name), 1.0)
             stress += w * (1 - nodes[dep].health)
-        
+
+            cold = max(0, 5 - temp_c)
+            cold_stress = 0.0
+
+            if cold > 0:
+                if node.name in [
+                    'Joint Rotation',
+                    'Primary O-Ring Seal',
+                    'Secondary O-Ring Seal',
+                    'Blow-By Erosion'
+                ]:
+                    cold_stress = 0.3 * cold
+
         # temp effect only on o-rings
         temp_term = 0
         if node.name == 'Field Joint O-Ring Resilience':
             cold = max(0, 5 - temp_c)
-            temp_term = cold * 0.7
+            temp_term = cold * 1.5
+        if node.name == 'Secondary O-Ring Seal':
+            cold = max(0, 5 - temp_c)
+            temp_term = cold * 0.8
         
+        override_term = override_bonus.get(node.name, 0.0) if override else 0.0
         logit = (
             node.baseline
             + node.health_sensitivity * (1 - node.health)
             + stress
             + temp_term
+            + cold_stress
+            + override_term
         )
 
         p_fail = sigmoid(logit)
@@ -115,8 +158,8 @@ def update_system(temp_c=0, override=False):
         if random.random() < p_fail:
             node.failed = True
             node.health = 0.0
-        else:
-            node.health = max(0, node.health - 0.01 * stress)
+        # else:
+        #     node.health = max(0, node.health - 0.01 * stress)
 
 def simulate(temp_c=0, override=False, steps=200):
     # reset
@@ -140,7 +183,7 @@ for i in range(3):
     temp = temps[i]
     override = overrides[i]
 
-    results = [simulate(temp_c=temp, override=override) for _ in range(100)]
+    results = [simulate(temp_c=temp, override=override, steps=80) for _ in range(1000)]
     print(f'Temperature: {temp}C, override: {override}')
     print(f'Survival rate: {sum(results) / len(results)}')
     print()
