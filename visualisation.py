@@ -15,7 +15,7 @@ HEIGHT = min(850, info.current_h - 100)
 
 BACKGROUND = (10, 15, 25)
 
-STEPS_TOTAL = 60
+STEPS_TOTAL = 120
 FPS = 8
 
 # -------------------------------
@@ -84,13 +84,27 @@ NODE_ORDER = [name for _, group in SECTIONS for name in group]
 # -------------------------------
 
 def led_colour(node):
+    # failure pulsing red
     if node.failed:
         pulse = 150 + int(50 * math.sin(time.time() * 6))
         return (pulse, 0, 0)
+    
+    # base colour from health
     elif node.health < 0.6:
-        return (255, 140, 0)
+        base = (255, 140, 0) # stressed orange
     else:
-        return (140, 180, 230)
+        base = (140, 180, 230) # healthy blue
+    
+    # override tint
+    if node.override_active:
+        pulse = int(20 * math.sin(time.time() * 4))
+        r, g, b = base
+        # add purple tint
+        r = min(255, r + 100)
+        b = min(255, b + 100)
+        return (r, g, b)
+    
+    return base
 
 def reset_nodes():
     for node in nodes.values():
@@ -135,6 +149,7 @@ def run_visual():
                     temp_c = random.choice(TEMP_STATES)
                 if event.key == pygame.K_o:
                     override = not override
+                    update_system(temp_c, override)
                 if event.key == pygame.K_SPACE:
                     reset_nodes()
                     launching = True
@@ -146,6 +161,16 @@ def run_visual():
         if launching:
             if step < STEPS_TOTAL and not nodes['Vehicle Survival'].failed:
                 update_system(temp_c, override)
+                LED_PACKET = []
+                for name in NODE_ORDER:
+                    node = nodes[name]
+                    LED_PACKET.append({
+                        'node': node.name,
+                        'health': node.health,
+                        'failed': node.failed,
+                        'override': node.override_active
+                    })
+                print(LED_PACKET)
                 step += 1
             else:
                 launching = False

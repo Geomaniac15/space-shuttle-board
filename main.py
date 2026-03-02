@@ -11,6 +11,7 @@ class Node:
         self.health_sensitivity = 5.0
         self.override_sensitivity = 0.0
         self.temp_sensitivity = 0.0
+        self.override_active = False
 
 def sigmoid(x):
     return 1 / (1 + math.exp(-x))
@@ -194,7 +195,14 @@ def update_system(temp_c=0, override=False):
         #     temp_term = cold * 0.8
         
         #override_term = override_bonus.get(node.name, 0.0) if override else 0.0
-        override_term = override_bonus.get(node.name, 0.0) if override else 0.0
+        # override_term = override_bonus.get(node.name, 0.0) if override else 0.0
+        override_term = 0.0
+        node.override_active = False
+
+        if override and node.name in override_bonus:
+            override_term = override_bonus[node.name]
+            node.override_active = True
+        
         logit = (
             node.baseline
             + node.health_sensitivity * (1 - node.health)
@@ -216,6 +224,7 @@ def simulate(temp_c=0, override=False, steps=60):
     for node in nodes.values():
         node.health = 1.0
         node.failed = False
+        node.override_active = False
 
     for t in range(steps):
         update_system(temp_c, override)
