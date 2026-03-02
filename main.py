@@ -56,24 +56,52 @@ edges = {
     'Launch Pressure': ['Sensor Accuracy'],
 }
 
+# edge weights 
+edge_w ={
+    ('Blow-By Erosion', 'Flame Impingement'): 2.0,
+    ('Flame Impingement', 'External Tank Integrity'): 2.0,
+    ('External Tank Integrity', 'LH2 Tank Breach'): 1.7,
+    ('LH2 Tank Breach', 'Structural Load Distribution'): 2.2,
+    ('Aerodynamic Stress', 'Structural Load Distribution'): 1.5,
+
+    # softer couplings
+    ('Sensor Accuracy', 'Launch Pressure'): 0.6,
+    ('Launch Pressure', 'Field Joint O-Ring Resilience'): 0.8,
+    ('Electrical Power', 'Flight Control System'): 0.7,
+    ('Flight Control System', 'Aerodynamic Stress'): 0.8,
+    ('Ice Formation Risk', 'Aerodynamic Stress'): 1.0,
+
+    ('SRB Internal Temperature', 'Joint Rotation'): 1.0,
+    ('Field Joint O-Ring Resilience', 'Joint Rotation'): 1.2,
+    ('Joint Rotation', 'Primary O-Ring Seal'): 1.2,
+    ('Primary O-Ring Seal', 'Secondary O-Ring Seal'): 1.0,
+    ('Secondary O-Ring Seal', 'Blow-By Erosion'): 1.3,
+    ('SRB Case Integrity', 'Blow-By Erosion'): 1.0,
+    ('Intertank Structure', 'Structural Load Distribution'): 1.0,
+    ('Structural Load Distribution', 'Vehicle Survival'): 2.5,
+}
+
 # dependencies
 for node_name, deps in edges.items():
     nodes[node_name].dependencies = deps
 
+# update system
 def update_system(temp_c=0, override=False):
     for node in nodes.values():
         if node.failed:
             continue
 
-        stress = 0
+        # compute stresses
+        stress = 0.0
         for dep in node.dependencies:
-            stress += (1 - nodes[dep].health)
+            w = edge_w.get((dep, node_name), 1.0)
+            stress += w * (1 - nodes[dep].health)
         
         # temp effect only on o-rings
         temp_term = 0
         if node.name == 'Field Joint O-Ring Resilience':
             cold = max(0, 5 - temp_c)
-            temp_term = cold * 0.5
+            temp_term = cold * 0.7
         
         logit = (
             node.baseline
@@ -84,9 +112,35 @@ def update_system(temp_c=0, override=False):
 
         p_fail = sigmoid(logit)
 
-        if random.random < p_fail:
+        if random.random() < p_fail:
             node.failed = True
             node.health = 0.0
         else:
             node.health = max(0, node.health - 0.01 * stress)
 
+def simulate(temp_c=0, override=False, steps=200):
+    # reset
+    for node in nodes.values():
+        node.health = 1.0
+        node.failed = False
+
+    for t in range(steps):
+        update_system(temp_c, override)
+
+        if nodes['Vehicle Survival'].failed:
+            return False
+    
+    return True
+
+# run sims
+temps = [15, 0, 0]
+overrides = [False, False, True]
+
+for i in range(3):
+    temp = temps[i]
+    override = overrides[i]
+
+    results = [simulate(temp_c=temp, override=override) for _ in range(100)]
+    print(f'Temperature: {temp}C, override: {override}')
+    print(f'Survival rate: {sum(results) / len(results)}')
+    print()
