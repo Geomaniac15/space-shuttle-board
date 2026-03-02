@@ -225,15 +225,16 @@ def simulate(temp_c=0, override=False, steps=60):
     
     return True
 
-# run sims
-temps = [15, 0, 0]
-overrides = [False, False, True]
+if __name__ == '__main__':
+    # run sims
+    temps = [15, 0, 0]
+    overrides = [False, False, True]
 
-for i in range(3):
-    temp = temps[i]
-    override = overrides[i]
+    for i in range(3):
+        temp = temps[i]
+        override = overrides[i]
 
-    results = [simulate(temp_c=temp, override=override, steps=60) for _ in range(1000)]
-    print(f'Temperature: {temp}C, override: {override}')
-    print(f'Survival rate: {sum(results) / len(results)}')
-    print()
+        results = [simulate(temp_c=temp, override=override, steps=60) for _ in range(1000)]
+        print(f'Temperature: {temp}C, override: {override}')
+        print(f'Survival rate: {sum(results) / len(results)}')
+        print()
