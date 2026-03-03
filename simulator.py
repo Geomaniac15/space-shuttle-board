@@ -181,71 +181,28 @@ def plot_survival_rates(simulations_per_temp=500):
     plt.tight_layout()
     plt.show()
 
-def mission_control_feed(temp_c=0, override=True, steps=60):
-    print(f"\n{BLUE}=== CAPCOM: INITIATING LAUNCH SEQUENCE ==={RESET}")
-    print(f"AMBIENT TEMP: {temp_c}°C | OVERRIDE: {override}\n")
-    
-    nodes = build_system()
-    
-    # track states so that it only prints when things change
-    alerted_warnings = set()
-    alerted_critical = set()
-    
-    for t in range(steps):
-        update_system(nodes, temp_c, override, t)
-        
-        # print the current timestep ticker
-        print(f"T+{t:02d}s ", end="", flush=True)
-        time.sleep(0.25) # slight delay
-        
-        step_events = []
-        
-        for name, node in nodes.items():
-            # critical Alert: node has completely failed
-            if node.failed and name not in alerted_critical:
-                cause = f" (Cascade from {node.failed_due_to})" if node.failed_due_to else ""
-                step_events.append(f"{RED}CRITICAL ALARM: {name} FAILED!{cause}{RESET}")
-                alerted_critical.add(name)
-            
-            # warning alert: node health has dropped below 60%
-            elif not node.failed and node.health < 0.6 and name not in alerted_warnings:
-                step_events.append(f"{YELLOW}WARNING: {name} integrity degrading ({node.health*100:.1f}%){RESET}")
-                alerted_warnings.add(name)
-
-        if not step_events:
-            print(f"{GREEN}NOMINAL{RESET}")
-        else:
-            print(" | ".join(step_events))
-            
-        # stop the simulation if the vehicle is lost
-        if nodes['Vehicle Survival'].failed:
-            print(f"\n{RED}=================================================={RESET}")
-            print(f"{RED}FLIGHT DYNAMICS OFFICER: WE HAVE LOSS OF VEHICLE.{RESET}")
-            print(f"{RED}=================================================={RESET}\n")
-            generate_post_flight_report(nodes, vehicle_survived=False)
-            return False
-
-    print(f"\n{GREEN}=================================================={RESET}")
-    print(f"{GREEN}CAPCOM: MECO CONFIRMED. VEHICLE HAS REACHED ORBIT.{RESET}")
-    print(f"{GREEN}=================================================={RESET}\n")
-    generate_post_flight_report(nodes, vehicle_survived=True)
-    return True
-
-def generate_post_flight_report(nodes, vehicle_survived):
+def generate_post_flight_report(nodes, vehicle_survived, crew_survived):
     print(f"\n{BLUE}=== POST-FLIGHT ANALYSIS REPORT ==={RESET}")
     
     failed_nodes = [node for node in nodes.values() if node.failed]
     
-    if vehicle_survived:
+    # three possible outcomes
+    if vehicle_survived and crew_survived:
         print(f"{GREEN}MISSION OUTCOME: SUCCESS{RESET}")
         print(f"Total Component Failures: {len(failed_nodes)}")
         if failed_nodes:
             print(f"Non-Critical Failures Logged: {', '.join(n.name for n in failed_nodes)}")
+    
+    elif not vehicle_survived and crew_survived:
+        print(f"{YELLOW}MISSION OUTCOME: ABORT SUCCESSFUL (CREW SAVED, MISSION FAILED){RESET}")
+        print(f"Total Components Destroyed Before Abort: {len(failed_nodes)}")
+        
     else:
-        print(f"{RED}MISSION OUTCOME: LOSS OF VEHICLE (L.O.V.){RESET}")
+        print(f"{RED}MISSION OUTCOME: LOSS OF VEHICLE (CREW LOST){RESET}")
         print(f"Total Components Destroyed: {len(failed_nodes)}")
         
-        # identify the root cause (failed nodes that weren't triggered by a dependency)
+    # print the cascade chain if anything broke
+    if failed_nodes:
         root_causes = [n.name for n in failed_nodes if n.failed_due_to is None]
         
         print(f"\n{YELLOW}--- ROOT CAUSE ANALYSIS ---{RESET}")
@@ -255,12 +212,77 @@ def generate_post_flight_report(nodes, vehicle_survived):
             print("Primary Failure Origin: Undetermined systemic cascade.")
             
         print(f"\n{YELLOW}--- CASCADE CHAIN ---{RESET}")
-        # print the domino effect
         for n in failed_nodes:
             if n.failed_due_to:
                 print(f" -> {n.name} critically failed due to loss of {n.failed_due_to}")
                 
     print(f"{BLUE}==================================={RESET}\n")
+
+def mission_control_feed(temp_c=0, override=True, steps=60):
+    print(f"\n{BLUE}=== CAPCOM: INITIATING LAUNCH SEQUENCE ==={RESET}")
+    print(f"AMBIENT TEMP: {temp_c}°C | OVERRIDE: {override}\n")
+    
+    nodes = build_system()
+    
+    alerted_warnings = set()
+    alerted_critical = set()
+    
+    # track states for the final report
+    vehicle_survived = True
+    crew_survived = True
+    
+    for t in range(steps):
+        update_system(nodes, temp_c, override, t)
+        
+        print(f"T+{t:02d}s ", end="", flush=True)
+        time.sleep(0.2) # delay
+        
+        step_events = []
+        
+        for name, node in nodes.items():
+            if node.failed and name not in alerted_critical:
+                cause = f" (Cascade from {node.failed_due_to})" if node.failed_due_to else ""
+                step_events.append(f"{RED}CRITICAL ALARM: {name} FAILED!{cause}{RESET}")
+                alerted_critical.add(name)
+            elif not node.failed and node.health < 0.6 and name not in alerted_warnings:
+                step_events.append(f"{YELLOW}WARNING: {name} integrity degrading ({node.health*100:.1f}%){RESET}")
+                alerted_warnings.add(name)
+
+        if not step_events:
+            print(f"{GREEN}NOMINAL{RESET}")
+        else:
+            print(" | ".join(step_events))
+
+        # --- FLIGHT COMPUTER ABORT LOGIC ---
+        # if fire breaches the SRB or power is critically low, pull the plug
+        if nodes['Blow-By Erosion'].failed or nodes['Electrical Power'].health < 0.2:
+            print(f"\n{YELLOW}!!! MASTER ALARM: CRITICAL CASCADE DETECTED !!!{RESET}")
+            print(f"{YELLOW}FLIGHT COMPUTERS: INITIATING EMERGENCY ABORT.{RESET}")
+            print(f"{YELLOW}CAPCOM: RTLS ABORT TRIGGERED. SEPARATING ORBITER.{RESET}")
+            
+            vehicle_survived = False
+            crew_survived = True
+            break # break the loop to save the crew
+            
+        # stop the simulation if the vehicle is lost instantly
+        if nodes['Vehicle Survival'].failed:
+            print(f"\n{RED}=================================================={RESET}")
+            print(f"{RED}FLIGHT DYNAMICS OFFICER: WE HAVE LOSS OF VEHICLE.{RESET}")
+            print(f"{RED}=================================================={RESET}")
+            
+            vehicle_survived = False
+            crew_survived = False
+            break
+
+    # if the loop finishes without breaking, we reached orbit
+    if vehicle_survived and crew_survived:
+        print(f"\n{GREEN}=================================================={RESET}")
+        print(f"{GREEN}CAPCOM: MECO CONFIRMED. VEHICLE HAS REACHED ORBIT.{RESET}")
+        print(f"{GREEN}=================================================={RESET}")
+
+    # generate the final report based on how the loop ended
+    generate_post_flight_report(nodes, vehicle_survived, crew_survived)
+    return vehicle_survived
 
 def main_sim():
     temps = [15, 0, 0]
