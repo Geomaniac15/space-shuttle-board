@@ -97,11 +97,12 @@ def led_colour(node):
     
     # override tint
     if node.override_active:
+        # pulse the tint so it's clearly animated
         pulse = int(20 * math.sin(time.time() * 4))
         r, g, b = base
-        # add purple tint
-        r = min(255, r + 100)
-        b = min(255, b + 100)
+        # add purple tint plus the pulse offset
+        r = min(255, r + 100 + pulse)
+        b = min(255, b + 100 + pulse)
         return (r, g, b)
     
     return base
@@ -216,7 +217,7 @@ def run_visual():
         # STATUS TEXT
         # -----------------------
 
-        status_text = f'TEMP: {temp_c}C   |   OVERRIDE: {override}   |   CURRENT_TIME: T+{step}s'
+        status_text = f'TEMP: {temp_c}C   |   OVERRIDE: {override}   |   TIME: T+{step}s'
         status_surface = font.render(status_text, True, (200, 200, 200))
         screen.blit(status_surface, (40, 20))
 
