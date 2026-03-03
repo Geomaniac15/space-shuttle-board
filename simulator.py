@@ -1,6 +1,14 @@
 import random
 import math
 import matplotlib.pyplot as plt
+import time
+
+# --- ANSI Color Codes for the Terminal ---
+GREEN = '\033[92m'
+YELLOW = '\033[93m'
+RED = '\033[91m'
+BLUE = '\033[94m'
+RESET = '\033[0m'
 
 # --- GLOBALS & CONSTANTS ---
 NODE_NAMES = [
@@ -166,14 +174,95 @@ def plot_survival_rates(simulations_per_temp=500):
     plt.grid(True, linestyle=':', alpha=0.7)
     plt.legend(fontsize=11)
     
-    # Highlight the freezing point
+    # highlight the freezing point
     plt.axvline(x=0, color='gray', linestyle='-', alpha=0.3)
     plt.text(0.2, 50, 'Freezing Point (0°C)', rotation=90, color='gray', alpha=0.7)
     
     plt.tight_layout()
     plt.show()
 
-if __name__ == '__main__':
+def mission_control_feed(temp_c=0, override=True, steps=60):
+    print(f"\n{BLUE}=== CAPCOM: INITIATING LAUNCH SEQUENCE ==={RESET}")
+    print(f"AMBIENT TEMP: {temp_c}°C | OVERRIDE: {override}\n")
+    
+    nodes = build_system()
+    
+    # track states so that it only prints when things change
+    alerted_warnings = set()
+    alerted_critical = set()
+    
+    for t in range(steps):
+        update_system(nodes, temp_c, override, t)
+        
+        # print the current timestep ticker
+        print(f"T+{t:02d}s ", end="", flush=True)
+        time.sleep(0.25) # slight delay
+        
+        step_events = []
+        
+        for name, node in nodes.items():
+            # critical Alert: node has completely failed
+            if node.failed and name not in alerted_critical:
+                cause = f" (Cascade from {node.failed_due_to})" if node.failed_due_to else ""
+                step_events.append(f"{RED}CRITICAL ALARM: {name} FAILED!{cause}{RESET}")
+                alerted_critical.add(name)
+            
+            # warning alert: node health has dropped below 60%
+            elif not node.failed and node.health < 0.6 and name not in alerted_warnings:
+                step_events.append(f"{YELLOW}WARNING: {name} integrity degrading ({node.health*100:.1f}%){RESET}")
+                alerted_warnings.add(name)
+
+        if not step_events:
+            print(f"{GREEN}NOMINAL{RESET}")
+        else:
+            print(" | ".join(step_events))
+            
+        # stop the simulation if the vehicle is lost
+        if nodes['Vehicle Survival'].failed:
+            print(f"\n{RED}=================================================={RESET}")
+            print(f"{RED}FLIGHT DYNAMICS OFFICER: WE HAVE LOSS OF VEHICLE.{RESET}")
+            print(f"{RED}=================================================={RESET}\n")
+            generate_post_flight_report(nodes, vehicle_survived=False)
+            return False
+
+    print(f"\n{GREEN}=================================================={RESET}")
+    print(f"{GREEN}CAPCOM: MECO CONFIRMED. VEHICLE HAS REACHED ORBIT.{RESET}")
+    print(f"{GREEN}=================================================={RESET}\n")
+    generate_post_flight_report(nodes, vehicle_survived=True)
+    return True
+
+def generate_post_flight_report(nodes, vehicle_survived):
+    print(f"\n{BLUE}=== POST-FLIGHT ANALYSIS REPORT ==={RESET}")
+    
+    failed_nodes = [node for node in nodes.values() if node.failed]
+    
+    if vehicle_survived:
+        print(f"{GREEN}MISSION OUTCOME: SUCCESS{RESET}")
+        print(f"Total Component Failures: {len(failed_nodes)}")
+        if failed_nodes:
+            print(f"Non-Critical Failures Logged: {', '.join(n.name for n in failed_nodes)}")
+    else:
+        print(f"{RED}MISSION OUTCOME: LOSS OF VEHICLE (L.O.V.){RESET}")
+        print(f"Total Components Destroyed: {len(failed_nodes)}")
+        
+        # identify the root cause (failed nodes that weren't triggered by a dependency)
+        root_causes = [n.name for n in failed_nodes if n.failed_due_to is None]
+        
+        print(f"\n{YELLOW}--- ROOT CAUSE ANALYSIS ---{RESET}")
+        if root_causes:
+            print(f"Primary Failure Origin(s): {', '.join(root_causes)}")
+        else:
+            print("Primary Failure Origin: Undetermined systemic cascade.")
+            
+        print(f"\n{YELLOW}--- CASCADE CHAIN ---{RESET}")
+        # print the domino effect
+        for n in failed_nodes:
+            if n.failed_due_to:
+                print(f" -> {n.name} critically failed due to loss of {n.failed_due_to}")
+                
+    print(f"{BLUE}==================================={RESET}\n")
+
+def main_sim():
     temps = [15, 0, 0]
     overrides = [False, False, True]
 
@@ -185,4 +274,7 @@ if __name__ == '__main__':
         print(f'Temperature: {temp}°C, Override: {override}')
         print(f'Survival rate: {(sum(results) / len(results)) * 100:.1f}%\n')
 
+if __name__ == '__main__':
+    # main_sim()
     # plot_survival_rates()
+    mission_control_feed(temp_c=0, override=True, steps=60)
