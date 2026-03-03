@@ -90,9 +90,17 @@ def update_system(nodes, temp_c, override, t):
         'Intertank Structure', 'Ice Formation Risk'
     }
 
+    # make sure override indicators are cleared before updating
+    for node in nodes.values():
+        node.override_active = False
+
     for name, node in nodes.items():
         if name in skip_nodes or node.failed:
             continue
+
+        # if global override is on, mark SRB corridor nodes so they pulse
+        if override and name in SRB_CORRIDOR:
+            node.override_active = True
 
         stress = sum((1.0 - nodes[dep].health) for dep in node.dependencies)
         
@@ -107,7 +115,6 @@ def update_system(nodes, temp_c, override, t):
             shock = random.uniform(1.5, 3.0) 
             if override and name in SRB_CORRIDOR and temp_c < 7:
                 shock += 0.5
-                node.override_active = True
             stress += shock
             node.health *= 0.85
 
