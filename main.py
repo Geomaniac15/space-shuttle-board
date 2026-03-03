@@ -91,7 +91,10 @@ exogenous = {
 
 override_bonus = {
     'Field Joint O-Ring Resilience': 2.8,
-    'Primary O-Ring Seal': 0.8,
+    'Primary O-Ring Seal': 1.2,
+    'Secondary O-Ring Seal': 1.2,
+    'Blow-By Erosion': 0.8,
+    'Flame Impingement': 0.6,
 }
 
 # dependencies
@@ -113,13 +116,13 @@ def update_system(temp_c=0, override=False):
     # temperature weakens seal baseline safety
     if temp_c < 5:
         cold = 5 - temp_c
-        nodes['Field Joint O-Ring Resilience'].baseline = -5.8 + 0.45 * cold + 0.3 * cold**2
+        nodes['Field Joint O-Ring Resilience'].baseline = -5.8 + 0.45*cold + 0.4*cold**2
         nodes['Primary O-Ring Seal'].baseline = -6.2 + 0.15 * cold
         nodes['Secondary O-Ring Seal'].baseline = -6.2 + 0.15 * cold
     else:
-        nodes['Field Joint O-Ring Resilience'].baseline = -8.5
-        nodes['Primary O-Ring Seal'].baseline = -7.4
-        nodes['Secondary O-Ring Seal'].baseline = -7.4
+        nodes['Field Joint O-Ring Resilience'].baseline = -9.5
+        nodes['Primary O-Ring Seal'].baseline = -7.8
+        nodes['Secondary O-Ring Seal'].baseline = -7.8
 
     # direct temperature weakening of SRB seals
     # if temp_c < 5:
@@ -144,14 +147,17 @@ def update_system(temp_c=0, override=False):
         # propagate failures from dependencies
         if any(nodes[dep].failed for dep in node.dependencies):
             # if any parent has failed, degrade or fail probabilistically
+            shock = 2.5
+            if override:
+                shock += 1.0
+            stress += shock
+            node.health *= 0.85
+
             # lower propagation chance to keep survival high at warm temps
-            if random.random() < 0.08:
+            if random.random() < 0.01:
                 node.failed = True
                 node.health = 0.0
                 continue
-            else:
-                # small health hit but not immediate failure
-                node.health *= 0.9
 
         # controlled stress-induced weakening (only for key nodes)
         # if node.name in [
