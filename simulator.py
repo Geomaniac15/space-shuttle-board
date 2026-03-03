@@ -1,5 +1,6 @@
 import random
 import math
+import matplotlib.pyplot as plt
 
 # --- GLOBALS & CONSTANTS ---
 NODE_NAMES = [
@@ -132,6 +133,46 @@ def simulate(temp_c=5, override=False, steps=60):
             return False
     return True
 
+def plot_survival_rates(simulations_per_temp=500):
+    temperatures = list(range(-10, 21))
+    normal_survival = []
+    override_survival = []
+
+    print(f"Simulating {simulations_per_temp} launches per temperature. This might take a few seconds...")
+    
+    for temp in temperatures:
+        # simulate standard operations
+        results_normal = [simulate(temp_c=temp, override=False, steps=60) for _ in range(simulations_per_temp)]
+        normal_survival.append((sum(results_normal) / simulations_per_temp) * 100)
+        
+        # simulate with override active
+        results_override = [simulate(temp_c=temp, override=True, steps=60) for _ in range(simulations_per_temp)]
+        override_survival.append((sum(results_override) / simulations_per_temp) * 100)
+
+    # --- plotting the data ---
+    plt.figure(figsize=(10, 6))
+    
+    # drawing
+    plt.plot(temperatures, normal_survival, marker='o', label='Standard Launch', color='#1f77b4', linewidth=2)
+    plt.plot(temperatures, override_survival, marker='x', label='Override Active', color='#d62728', linewidth=2, linestyle='--')
+    
+    # formatting
+    plt.title('Vehicle Survival Probability vs. Ambient Temperature', fontsize=14, fontweight='bold')
+    plt.xlabel('Ambient Temperature (°C)', fontsize=12)
+    plt.ylabel('Survival Probability (%)', fontsize=12)
+    
+    plt.xticks(temperatures)
+    plt.yticks(range(0, 101, 10))
+    plt.grid(True, linestyle=':', alpha=0.7)
+    plt.legend(fontsize=11)
+    
+    # Highlight the freezing point
+    plt.axvline(x=0, color='gray', linestyle='-', alpha=0.3)
+    plt.text(0.2, 50, 'Freezing Point (0°C)', rotation=90, color='gray', alpha=0.7)
+    
+    plt.tight_layout()
+    plt.show()
+
 if __name__ == '__main__':
     temps = [15, 0, 0]
     overrides = [False, False, True]
@@ -143,3 +184,5 @@ if __name__ == '__main__':
         results = [simulate(temp_c=temp, override=override, steps=60) for _ in range(2000)]
         print(f'Temperature: {temp}°C, Override: {override}')
         print(f'Survival rate: {(sum(results) / len(results)) * 100:.1f}%\n')
+
+    # plot_survival_rates()
