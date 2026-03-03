@@ -97,6 +97,15 @@ override_bonus = {
     'Flame Impingement': 0.6,
 }
 
+SRB_OVERRIDE_CORRIDOR = {
+    'Field Joint O-Ring Resilience',
+    'Joint Rotation',
+    'Primary O-Ring Seal',
+    'Secondary O-Ring Seal',
+    'Blow-By Erosion',
+    'Flame Impingement',
+}
+
 # dependencies
 for node_name, deps in edges.items():
     nodes[node_name].dependencies = deps
@@ -120,7 +129,7 @@ def update_system(temp_c=0, override=False):
         nodes['Primary O-Ring Seal'].baseline = -6.2 + 0.15 * cold
         nodes['Secondary O-Ring Seal'].baseline = -6.2 + 0.15 * cold
     else:
-        nodes['Field Joint O-Ring Resilience'].baseline = -9.5
+        nodes['Field Joint O-Ring Resilience'].baseline = -9.7
         nodes['Primary O-Ring Seal'].baseline = -7.8
         nodes['Secondary O-Ring Seal'].baseline = -7.8
 
@@ -148,8 +157,8 @@ def update_system(temp_c=0, override=False):
         if any(nodes[dep].failed for dep in node.dependencies):
             # if any parent has failed, degrade or fail probabilistically
             shock = 2.5
-            if override:
-                shock += 1.0
+            if override and node.name in SRB_OVERRIDE_CORRIDOR:
+                shock += 0.3
             stress += shock
             node.health *= 0.85
 
