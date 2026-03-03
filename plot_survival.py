@@ -1,6 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from main import simulate
+from simulator import simulate
 
 # temperature sweep
 temps = np.linspace(-5, 20, 15)  # from -5°C to 20°C

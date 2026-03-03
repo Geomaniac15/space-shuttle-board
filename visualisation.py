@@ -1,7 +1,7 @@
 import pygame
 import math
 import time
-from main import nodes, update_system
+from simulator import build_system, update_system
 import random
 
 # -------------------------------
@@ -106,10 +106,11 @@ def led_colour(node):
     
     return base
 
-def reset_nodes():
+def reset_nodes(nodes):
     for node in nodes.values():
         node.health = 1.0
         node.failed = False
+        node.override_active = False
 
 # -------------------------------
 # MAIN VISUAL LOOP
@@ -131,7 +132,8 @@ def run_visual():
 
     TEMP_STATES = [20, 15, 10, 5, 0]
 
-    reset_nodes()
+    # reset_nodes()
+    nodes = build_system()
 
     running = True
     while running:
@@ -149,9 +151,9 @@ def run_visual():
                     temp_c = random.choice(TEMP_STATES)
                 if event.key == pygame.K_o:
                     override = not override
-                    update_system(temp_c, override)
+                    update_system(nodes, temp_c, override, step)
                 if event.key == pygame.K_SPACE:
-                    reset_nodes()
+                    reset_nodes(nodes)
                     launching = True
                     step = 0
 
@@ -160,7 +162,7 @@ def run_visual():
         # -----------------------
         if launching:
             if step < STEPS_TOTAL and not nodes['Vehicle Survival'].failed:
-                update_system(temp_c, override)
+                update_system(nodes, temp_c, override, step)
                 LED_PACKET = []
                 for name in NODE_ORDER:
                     node = nodes[name]
@@ -170,7 +172,7 @@ def run_visual():
                         'failed': node.failed,
                         'override': node.override_active
                     })
-                print(LED_PACKET)
+                # print(LED_PACKET)
                 step += 1
             else:
                 launching = False
@@ -227,7 +229,7 @@ def run_visual():
 
         pygame.display.flip()
         clock.tick(FPS)
-        # time.sleep(0.5)
+        # time.sleep(1.5)
 
     pygame.quit()
 
