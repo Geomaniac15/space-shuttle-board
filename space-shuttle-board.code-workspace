@@ -1,0 +1,15 @@
+{
+	"folders": [
+		{
+			"name": "space-shuttle-board",
+			"path": "."
+		},
+		{
+			"name": "Shuttle Board with ESP32",
+			"path": "../../Users/gveal/OneDrive/Documents/PlatformIO/Projects/Shuttle Board with ESP32"
+		}
+	],
+	"settings": {
+		"powershell.cwd": "space-shuttle-board"
+	}
+}
