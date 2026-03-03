@@ -1,63 +1,103 @@
 #include <FastLED.h>
 
-#define LED_PIN 33
-#define NUM_LEDS 5
-#define BRIGHTNESS 40
-#define LAUNCH_PIN 13
-
-bool lastLaunchState = HIGH;
-bool launchTriggered = false;
-bool vehicleSurvives = false;
+constexpr uint8_t LED_PIN = 33;
+constexpr uint8_t NUM_LEDS = 15;
+constexpr uint8_t BRIGHTNESS = 40;
+constexpr uint8_t LAUNCH_PIN = 13;
 
 CRGB leds[NUM_LEDS];
 
+int lastLaunchState = HIGH;
+bool launchTriggered = false;
+bool showingResult = false;
+
+// ---- TEMPORARY INPUTS ----
+int tempC = 15;              // Change to 0, 5, 10, 15 to test
+bool overrideActive = false;
+
+// ---- Compute Survival Percentage (0-100) ----
+uint8_t computeSurvivalPercent(int temp, bool overrideFlag) {
+  int survival = 90; // percent
+
+  if (temp <= 0) survival -= 40;
+  else if (temp <= 5) survival -= 25;
+  else if (temp <= 10) survival -= 10;
+
+  if (overrideFlag) survival -= 15;
+
+  survival = constrain(survival, 0, 100);
+  return static_cast<uint8_t>(survival);
+}
+
+// ---- Idle State ----
 void idleAnimation() {
-  for (int i = 0; i < NUM_LEDS; i++) {
-    leds[i] = CRGB::Blue;
-  }
+  fill_solid(leds, NUM_LEDS, CRGB::Blue);
   FastLED.show();
 }
 
+// ---- Launch Sequence ----
 void runLaunchSequence() {
-  for (int i = 0; i < NUM_LEDS; i++) {
+  // Countdown sweep (builds up orange bar)
+  for (uint8_t i = 0; i < NUM_LEDS; ++i) {
     leds[i] = CRGB::Orange;
     FastLED.show();
-    delay(200);
+    delay(120);
   }
 
-  delay(500);
+  delay(400);
 
-  for (int i = 0; i < NUM_LEDS; i++) {
-    vehicleSurvives = random(0, 100) > 40; // 60% survival
-    if (vehicleSurvives) {
-      for (int i = 0; i < NUM_LEDS; i++) {
-        leds[i] = CRGB::Green;
-      }
-    } else {
-      for (int i = 0; i < NUM_LEDS; i++) {
-        leds[i] = CRGB::Red;
-      }
+  // Compute probability as integer percent
+  uint8_t survivalPct = computeSurvivalPercent(tempC, overrideActive);
+
+  // Visual probability bar (number of green LEDs)
+  uint8_t litCount = (survivalPct * NUM_LEDS + 99) / 100;
+  for (uint8_t i = 0; i < NUM_LEDS; ++i) {
+    leds[i] = (i < litCount) ? CRGB::Green : CRGB::Black;
+  }
+  FastLED.show();
+  delay(1200);
+
+  // Random roll using integer percent
+  bool vehicleSurvives = (static_cast<uint8_t>(random(100)) < survivalPct);
+
+  if (vehicleSurvives) {
+
+    // Success → whole strip turns green
+    fill_solid(leds, NUM_LEDS, CRGB::Green);
+    FastLED.show();
+
+  } else {
+
+    // Failure → red cascade across strip
+    for (uint8_t i = 0; i < NUM_LEDS; ++i) {
+      leds[i] = CRGB::Red;
+      FastLED.show();
+      delay(80);
     }
 
-    FastLED.show();
-    delay(1000);
   }
+
+  delay(2000);
+  showingResult = true;
 }
 
 void setup() {
   FastLED.addLeds<WS2812B, LED_PIN, GRB>(leds, NUM_LEDS);
   FastLED.setBrightness(BRIGHTNESS);
+
   pinMode(LAUNCH_PIN, INPUT_PULLUP);
+
   randomSeed(analogRead(34));
 }
 
 void loop() {
-  bool currentState = digitalRead(LAUNCH_PIN);
+  int currentState = digitalRead(LAUNCH_PIN);
 
+  // Edge detect: HIGH -> LOW
   if (lastLaunchState == HIGH && currentState == LOW) {
     launchTriggered = true;
+    showingResult = false;
   }
-
   lastLaunchState = currentState;
 
   if (launchTriggered) {
@@ -65,5 +105,7 @@ void loop() {
     launchTriggered = false;
   }
 
-  idleAnimation();
+  if (!showingResult) {
+    idleAnimation();
+  }  
 }
