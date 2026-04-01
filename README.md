@@ -21,6 +21,17 @@ Instead of a single rule, the system models a network of engineering variables w
 
 The result is a probabilistic estimate of vehicle survival.
 
+Project Status
+-----------------
+
+Current:
+- Python/Pygame simulation implemented
+- Node dependency model and probabilistic failure propagation working
+- Visualisation and testing in software
+
+Planned:
+- Physical ESP32-based board build with LED indicators
+- Hardware assembly
 
 System Architecture
 -------------------
