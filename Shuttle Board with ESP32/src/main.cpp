@@ -1,9 +1,9 @@
 #include <FastLED.h>
 
 constexpr uint8_t LED_PIN = 33;
-constexpr uint8_t NUM_LEDS = 15;
+constexpr uint8_t NUM_LEDS = 2;
 constexpr uint8_t BRIGHTNESS = 40;
-constexpr uint8_t LAUNCH_PIN = 13;
+constexpr uint8_t LAUNCH_PIN = 19;
 
 CRGB leds[NUM_LEDS];
 
@@ -82,12 +82,24 @@ void runLaunchSequence() {
 }
 
 void setup() {
+  Serial.begin(115200);
+  Serial.println("ESP32 starting up...");
+
   FastLED.addLeds<WS2812B, LED_PIN, GRB>(leds, NUM_LEDS);
   FastLED.setBrightness(BRIGHTNESS);
 
   pinMode(LAUNCH_PIN, INPUT_PULLUP);
 
   randomSeed(analogRead(34));
+
+  // Test LED on startup
+  Serial.println("Testing LED...");
+  leds[0] = CRGB::Red;
+  FastLED.show();
+  delay(1000);
+  leds[0] = CRGB::Black;
+  FastLED.show();
+  Serial.println("LED test complete.");
 }
 
 void loop() {
@@ -95,6 +107,7 @@ void loop() {
 
   // Edge detect: HIGH -> LOW
   if (lastLaunchState == HIGH && currentState == LOW) {
+    Serial.println("Launch triggered!");
     launchTriggered = true;
     showingResult = false;
   }
@@ -107,5 +120,7 @@ void loop() {
 
   if (!showingResult) {
     idleAnimation();
-  }  
+  }
+
+  delay(100); // Small delay to prevent serial spam
 }
